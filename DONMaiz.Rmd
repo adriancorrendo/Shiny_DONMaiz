@@ -1,0 +1,256 @@
+---
+title: "DONMaiz"
+author: Dosis Optima de N en Maiz
+output: 
+  flexdashboard::flex_dashboard:
+        orientation: columns
+        navbar:
+           - { icon: "fa-github", href: "https://github.com/adriancorrendo/", align: right }
+           - { icon: "fa-twitter", href: "https://twitter.com/aacorrendo/", align: right}
+           - { icon: "fa-linkedin", href: "https://www.linkedin.com/in/adriancorrendo/", align: right}
+        theme:
+            bg: "#fb8f67"
+            fg: "#272640"
+            primary: "#edeec9"
+            base_font: !expr bslib::font_google("Oswald")
+runtime: shiny
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(shiny)
+library(shinydashboard)
+library(shinythemes)
+library(bslib)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(xgboost)
+library(plotly)
+library(DT)
+library(ggplot2)
+tags$style("@import url(https://use.fontawesome.com/releases/v6.1.1/css/all.css);")
+
+```
+
+```{r}
+curvas <- readRDS( file = "data/curvas.RDS")
+coeff <- readRDS( file = "data/coeff.RDS")
+
+```
+
+
+```{r}
+soil_texture_colors <- c("#43aa8b","#f9844a","#a01a58")
+
+```
+
+
+```{r echo = FALSE}
+# Loading DATA / MODEL ----
+#xgb_spring_final_model <- readRDS(file = "data/MLmodel.rds")
+```
+
+```{r echo = FALSE}
+# Define list of options for inputs
+
+# Texture list
+texture_list = list("Clay",
+                    "Medium",
+                    "Coarse")
+
+# Yield list
+yield_environment_list = list("5. Very-High (>13.1 Mg/ha)", 
+                              "4. High (>11.5 Mg/ha)", 
+                              "3. Medium (>10.1 Mg/ha)", 
+                              "2. Low (>8.5 Mg/ha)",
+                              "1. Very-Low (<8.5 Mg/ha)" )
+
+```
+
+Column {data-width=300}
+-----------------------------------------------------------------------
+
+### Inputs
+
+```{r}
+
+# N price
+shiny::sliderInput("N_price", "N cost, $/kg N", value = 1.0,  min = 0.5, max = 3.5)
+
+# Grain price
+shiny::sliderInput("Grain_price", "Grain price, $/kg grain", value = 0.1,  min = 0.05, max = 0.2)
+
+# Soil N
+shiny::sliderInput("PPNT", "Pre-plant NO3-N Test, kg N/ha", value = 60,  min = 0, max = 300)
+
+shiny::selectInput(
+  inputId = "yield_environment_choice",
+  label   = "Select yield environment level",
+  choices = yield_environment_list )
+
+shiny::selectInput(
+  inputId = "texture_choice",
+  label   = "Select soil texture group",
+  choices = texture_list)
+
+# Price ratio
+PR <- reactive({ as.numeric(input$N_price/ input$Grain_price) } )
+
+
+# Reactive texture
+chosen_texture <- reactive({ texture_list %>% purrr::pluck(input$texture_choice) })
+
+# Reactive yield
+chosen_yield_environment <- reactive({ yield_environment_list %>% purrr::pluck(input$yield_environment_choice) })
+```
+
+Column {data-width=300}
+-----------------------------------------------------------------------
+
+### Chart A
+
+```{r}
+
+PRatio <- eventReactive( input$N_price,
+                          as.numeric(input$N_price/ input$Grain_price) )
+
+
+flexdashboard::renderValueBox({
+  flexdashboard::valueBox(PRatio(), 
+            "Price Ratio", 
+            icon = "fa-tag", 
+            color = "#2a9d8f") }) 
+
+
+```
+
+### Gauge
+
+```{r}
+flexdashboard::renderGauge({
+  flexdashboard::gauge( PRatio(), min = 0, max = 15, symbol = '', 
+  gaugeSectors( success = c(0,6), warning = c(6.001,10), danger = c(12, 15),
+  colors = list("green", "orange", "red")) )
+})
+```
+
+### Plot
+```{r}
+ELSE = TRUE
+data_plot <- reactive({
+  curvas %>% 
+     dplyr::filter(case_when(input$texture_choice == "Clay" & 
+                             input$yield_environment_choice == "5. Very-High (>13.1 Mg/ha)" 
+                             ~ QT == "5_FINE",
+                             input$texture_choice == "Clay" & 
+                             input$yield_environment_choice == "4. High (>11.5 Mg/ha)" 
+                             ~ QT == "4_FINE",
+                             input$texture_choice == "Clay" & 
+                             input$yield_environment_choice == "3. Medium (>10.1 Mg/ha)" 
+                             ~ QT == "3_FINE",
+                             input$texture_choice == "Clay" & 
+                             input$yield_environment_choice == "2. Low (>8.5 Mg/ha)" 
+                             ~ QT == "2_FINE",
+                             input$texture_choice == "Clay" & 
+                             input$yield_environment_choice == "1. Very-Low (<8.5 Mg/ha)" 
+                             ~ QT == "1_FINE",
+                             ELSE ~ QT == "2_MEDIUM") ) })
+
+
+
+#View(data_plot)
+  
+   #if (input$texture_choice == "Clay" & input$yield_environment_choice == "1. Very-Low (<8.5 Mg/ha)")
+   #{FINE_1}
+#   if (input$texture_choice == "Clay" & input$yield_environment_choice == "2. Low (>8.5 Mg/ha)")
+#   {2_FINE}
+#   if (input$texture_choice == "Clay" & input$yield_environment_choice == "3. Medium (>10.1 {Mg/ha)")
+#   {3_FINE}
+#   if (input$texture_choice == "Clay" & input$yield_environment_choice == "4. High (>11.5 Mg{/ha)") 
+#   {4_FINE}
+#   if (input$texture_choice == "Clay" & input$yield_environment_choice == "5. Very-High (>13.1 Mg/ha)")
+#   {5_FINE}
+#   if (input$texture_choice == "Medium" & input$yield_environment_choice == "1. Very-Low (<8{.5 Mg/)")
+#   {1_MEDIUM}
+#   if (input${texture_choice == "Medium" & input$yield_environment_choice == "2. Low (>8.5 Mg/ha)")
+#   {2_MEDIUM}
+#   if (input${texture_choice == "Medium" & input$yield_environment_choice == "3. Medium (>10.1 Mg/ha)")
+#   {3_MEDIUM}
+#   if (input${texture_choice == "Medium" & input$yield_environment_choice == "4. High (>11.5 Mg/ha)")
+#   {4_MEDIUM}
+#   if (input${texture_choice == "Medium" & input$yield_environment_choice == "5. Very-High (>13.1 Mg/ha)")
+#   {5_MEDIUM}
+#   if (input$texture_choice == "Coarse" & input$yield_environment_choice == "1. Very-Low (<8.5 Mg/ha)")
+#   1_COARSE")}
+#   if (input$texture_choice == "Coarse" & input$yield_environment_choice == "2. Low (>8.5 Mg/ha)")
+#   2_COARSE")}
+#   if (input$texture_choice == "Coarse" & input$yield_environment_choice == "3. Medium (>10.1 Mg/ha)")
+#   3_COARSE")}
+#   if (input$texture_choice == "Coarse" & input$yield_environment_choice == "4. High (>11.5 Mg/ha)")
+#   4_COARSE")}
+#   if (input$texture_choice == "Coarse" & input$yield_environment_choice == "5. Very-High (>13.1 Mg/ha)")
+#   5_COARSE")}
+#   } )
+# 
+# QxT.PLOT <- 
+#     data_plot() %>%
+#     ggplot(aes(x=Ns, y=y))+
+#     geom_point()+
+# #   # geom_line(size = 1.25,
+# #   #          col = case_when(input$texture_choice == "Clay" ~ "#ba3037",
+# #   #                            input$texture_choice == "Medium" ~ "#2c61d4",
+# #   #                            input$texture_choice == "Coarse" ~ "#5e691f"),
+# #   #            linetype = case_when(Q == "1.Muy bajo" ~ "dotted",
+# #   #                                 Q == "2.Bajo" ~ "dashed",
+# #   #                                 Q == "3.Medio" ~ "longdash",
+# #   #                                 Q == "4.Alto" ~ "F1",
+# #   #                                 Q == "5.Muy Alto" ~ "solid"))+
+# #   # scale_linetype_manual(name=bquote(~Y[max]*''),
+# #   #                        values = c("dotted", "dashed","longdash","F1","solid"), guide = FALSE)+
+# #   # scale_color_manual(name="Textura", values=c("#ba3037", "#2c61d4", "#5e691f"),
+# #   #                    labels = c("Arcillosa", "Media", "Arenosa"))+
+# #   # facet_grid(~Q)+
+  # scale_y_continuous(breaks=seq(0,20000, 2000), limits = c(0,18000))+
+  # scale_x_continuous(breaks=seq(0,500, 100), limits = c(0,450))+
+#   # Annotate AONs
+#   #ggpp::annotate(data = AON.spanish, geom = "text", aes(x = 400, y = 2000, label = paste0(AON)))+
+   # theme_bw()+
+   # labs(x = bquote(~ N[s+f]* '(kg N ' ~ha^-1*')'), y = bquote(~ 'Rendimiento (kg' ~ha^-1*')'))+
+   # theme(axis.text.x = element_text(size=rel(1.25), color = "black"),
+   #        axis.text.y = element_text(size=rel(1.25), color = "black"),
+   #        axis.title = element_text(size=rel(1.75), color = "black"),
+   #        strip.text = element_text(size=rel(1.25), color = "black"),
+   #       legend.title = element_text(size = rel(1)),
+   #       legend.position = "top", legend.key.size = unit(2.5,"line"),
+   #       legend.text = element_text(size = rel(1)),
+   #       legend.key.width = unit(2.5,"line"),
+   #      panel.grid = element_blank())
+
+#
+#
+#
+ renderPlot({ data_plot() %>%
+    ggplot(aes(x=Ns, y=y))+
+    geom_path() } )
+ 
+# renderTable(data_plot())
+
+
+```
+
+Column {data-width=300}
+-----------------------------------------------------------------------
+
+### Chart C
+
+```{r}
+
+```
+
+### Chart D
+
+```{r}
+
+```
+
