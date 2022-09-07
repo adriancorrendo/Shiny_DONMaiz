@@ -35,7 +35,11 @@ tags$style("@import url(https://use.fontawesome.com/releases/v6.1.1/css/all.css)
 
 ```{r}
 curvas <- readRDS( file = "data/curvas.RDS")
-coeff <- readRDS( file = "data/coeff.RDS")
+coeff <- readRDS( file = "data/coeff.RDS") %>% 
+                  mutate(B0 = a, 
+                         B1 = b,
+                         AONav = Xc) %>% 
+                  dplyr::select(-a,-b,-Xc, -Percentile)
 
 ```
 
@@ -94,7 +98,10 @@ shiny::selectInput(
   label   = "Select yield environment level",
   choices = yield_environment_list )
 
+# Defining reactive
 
+# PPNT
+PPNT <- reactive({as.numeric(input$PPNT)})
 
 # Price ratio
 PR <- reactive({ as.numeric(input$N_price/ input$Grain_price) } )
@@ -109,7 +116,7 @@ chosen_yield_environment <- reactive({ yield_environment_list %>% purrr::pluck(i
 
 Column {data-width=400}
 -----------------------------------------------------------------------
-### Plot
+
 ```{r}
 ELSE = TRUE
 data_plot <- reactive({
@@ -160,7 +167,7 @@ data_plot <- reactive({
                              input$yield_environment_choice == "1. Very-Low (<8.5 Mg/ha)" 
                              ~ QT == "1_COARSE") ) })
 
-
+# Plot
 plot <- reactive({ data_plot() %>%
     ggplot(aes(x=Ns, y=y))+
     geom_path(size = 2, 
@@ -183,6 +190,11 @@ plot <- reactive({ data_plot() %>%
       #panel.grid = element_blank()
      )
 })
+```
+
+
+### Plot
+```{r}
 
 renderPlot({ plot()  } )
 
@@ -201,7 +213,7 @@ PRatio <- eventReactive( input$N_price / input$Grain_price,
                           round(as.numeric(input$N_price/ input$Grain_price), 1) )
 
 flexdashboard::renderGauge({
-  flexdashboard::gauge( PRatio(), min = 0, max = 15, symbol = '', 
+  flexdashboard::gauge( PRatio(), min = 0, max = 20, symbol = '', 
   gaugeSectors( success = c(0,6), warning = c(6.001,10), danger = c(12, 15),
   colors = list("green", "orange", "red")) )
 })
@@ -215,21 +227,47 @@ flexdashboard::renderValueBox({
   flexdashboard::valueBox(PRatio(), 
             "Price Ratio", 
             icon = "fa-tag", 
-            color = "#2a9d8f") }) 
+            color = "steelblue") }) 
 
 
 ```
 
 
+
+
 ### Dosis Optima Agronomica
 
 ```{r}
+EONR_table <- reactive({ 
+              coeff %>%
+                mutate(PR = PRatio(), #replace with reactive value
+                     PPNT = PPNT() ) %>% 
+                mutate(AONR = AONav - PPNT,
+                     EONav = (PR - B1)/(2*B2),
+                     EONR = EONav - PPNT) })
+```
+
+```{r}
+
+flexdashboard::renderValueBox({
+  flexdashboard::valueBox(
+    EONR_table()[["EONR"]][[1]]
+                            , 
+            "AONR", 
+            icon = "fa-tag", 
+            color = "steelblue") }) 
 
 ```
 
 ### Dosis Optima Economica
 
 ```{r}
+
+flexdashboard::renderValueBox({
+  flexdashboard::valueBox(PRatio(), 
+            "EONR", 
+            icon = "fa-tag", 
+            color = "green") }) 
 
 ```
 
