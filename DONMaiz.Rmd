@@ -17,6 +17,7 @@ runtime: shiny
 ---
 
 ```{r setup, include=FALSE}
+
 library(flexdashboard)
 library(shiny)
 library(shinydashboard)
@@ -34,38 +35,20 @@ tags$style("@import url(https://use.fontawesome.com/releases/v6.1.1/css/all.css)
 ```
 
 ```{r}
+
+# Loading Data
 curvas <- readRDS( file = "data/curvas.RDS")
 coeff <- readRDS( file = "data/coeff.RDS")
 
 ```
 
-
 ```{r}
 soil_texture_colors <- c("#43aa8b","#f9844a","#a01a58")
-
 ```
-
 
 ```{r echo = FALSE}
 # Loading DATA / MODEL ----
 #xgb_spring_final_model <- readRDS(file = "data/MLmodel.rds")
-```
-
-```{r echo = FALSE}
-# Define list of options for inputs
-
-# Texture list
-texture_list = list("Clay",
-                    "Medium",
-                    "Coarse")
-
-# Yield list
-yield_environment_list = list("5. Very-High (>13.1 Mg/ha)", 
-                              "4. High (>11.5 Mg/ha)", 
-                              "3. Medium (>10.1 Mg/ha)", 
-                              "2. Low (>8.5 Mg/ha)",
-                              "1. Very-Low (<8.5 Mg/ha)" )
-
 ```
 
 Column {data-width=150}
@@ -87,24 +70,21 @@ shiny::sliderInput("PPNT", "Pre-plant NO3-N Test, kg N/ha", value = 60,  min = 0
 shiny::selectInput(
   inputId = "texture_choice",
   label   = "Select soil texture group",
-  choices = texture_list)
+  choices = c("Very-Low (<8.5 Mg/ha)" = "1.Muy bajo",
+              "Low (>8.5 Mg/ha)" = "2.Bajo",
+              "Medium (>10.1 Mg/ha)" = "3.Medio",
+              "High (>11.5 Mg/ha)" = "4.Alto",
+              "Very-High (>13.1 Mg/ha)" = "5.Muy Alto")
+  )
 
 shiny::selectInput(
   inputId = "yield_environment_choice",
   label   = "Select yield environment level",
-  choices = yield_environment_list )
+  choices = c("Clay" = "Fine",
+              "Medium" = "Medium",
+              "Coarse" = "Coarse")
+  )
 
-
-
-# Price ratio
-PR <- reactive({ as.numeric(input$N_price/ input$Grain_price) } )
-
-
-# Reactive texture
-chosen_texture <- reactive({ texture_list %>% purrr::pluck(input$texture_choice) })
-
-# Reactive yield
-chosen_yield_environment <- reactive({ yield_environment_list %>% purrr::pluck(input$yield_environment_choice) })
 ```
 
 Column {data-width=400}
@@ -112,81 +92,50 @@ Column {data-width=400}
 ### Plot
 ```{r}
 ELSE = TRUE
+
 data_plot <- reactive({
   curvas %>% 
-     dplyr::filter(case_when(input$texture_choice == "Clay" & 
-                             input$yield_environment_choice == "5. Very-High (>13.1 Mg/ha)" 
-                             ~ QT == "5_FINE",
-                             input$texture_choice == "Clay" & 
-                             input$yield_environment_choice == "4. High (>11.5 Mg/ha)" 
-                             ~ QT == "4_FINE",
-                             input$texture_choice == "Clay" & 
-                             input$yield_environment_choice == "3. Medium (>10.1 Mg/ha)" 
-                             ~ QT == "3_FINE",
-                             input$texture_choice == "Clay" & 
-                             input$yield_environment_choice == "2. Low (>8.5 Mg/ha)" 
-                             ~ QT == "2_FINE",
-                             input$texture_choice == "Clay" & 
-                             input$yield_environment_choice == "1. Very-Low (<8.5 Mg/ha)" 
-                             ~ QT == "1_FINE",
-                             input$texture_choice == "Medium" & 
-                             input$yield_environment_choice == "5. Very-High (>13.1 Mg/ha)" 
-                             ~ QT == "5_MEDIUM",
-                             input$texture_choice == "Medium" & 
-                             input$yield_environment_choice == "4. High (>11.5 Mg/ha)" 
-                             ~ QT == "4_MEDIUM",
-                             input$texture_choice == "Medium" & 
-                             input$yield_environment_choice == "3. Medium (>10.1 Mg/ha)" 
-                             ~ QT == "3_MEDIUM",
-                             input$texture_choice == "Medium" & 
-                             input$yield_environment_choice == "2. Low (>8.5 Mg/ha)" 
-                             ~ QT == "2_MEDIUM",
-                             input$texture_choice == "Medium" & 
-                             input$yield_environment_choice == "1. Very-Low (<8.5 Mg/ha)" 
-                             ~ QT == "1_MEDIUM",
-                             input$texture_choice == "Coarse" & 
-                             input$yield_environment_choice == "5. Very-High (>13.1 Mg/ha)" 
-                             ~ QT == "5_COARSE",
-                             input$texture_choice == "Coarse" & 
-                             input$yield_environment_choice == "4. High (>11.5 Mg/ha)" 
-                             ~ QT == "4_COARSE",
-                             input$texture_choice == "Coarse" & 
-                             input$yield_environment_choice == "3. Medium (>10.1 Mg/ha)" 
-                             ~ QT == "3_COARSE",
-                             input$texture_choice == "Coarse" & 
-                             input$yield_environment_choice == "2. Low (>8.5 Mg/ha)" 
-                             ~ QT == "2_COARSE",
-                             input$texture_choice == "Coarse" & 
-                             input$yield_environment_choice == "1. Very-Low (<8.5 Mg/ha)" 
-                             ~ QT == "1_COARSE") ) })
+     filter(Q == input$texture_choice,
+            TEXT == input$yield_environment_choice ) })
 
+plot <- reactive({
 
-plot <- reactive({ data_plot() %>%
-    ggplot(aes(x=Ns, y=y))+
-    geom_path(size = 2, 
-              color = case_when(input$texture_choice == "Clay" ~ "#ba3037",
-                                input$texture_choice == "Medium" ~ "#2c61d4",
-                                input$texture_choice == "Coarse" ~ "#5e691f"))+
-    scale_y_continuous(breaks=seq(0,20000, 2000), limits = c(0,18000))+
-    scale_x_continuous(breaks=seq(0,400, 50), limits = c(0,400))+
-    theme_bw()+
-     labs(x = bquote(~ N[soil+fertilizer]* '(kg N ' ~ha^-1*')'), 
-          y = bquote(~ 'Corn Grain Yield (kg' ~ha^-1*')'))+
-    theme(axis.text.x = element_text(size=rel(1.25), color = "black"),
-       axis.text.y = element_text(size=rel(1.25), color = "black"),
-       axis.title = element_text(size=rel(1.75), color = "black"),
-       strip.text = element_text(size=rel(1.25), color = "black"),
-      legend.title = element_text(size = rel(1)),
-      legend.position = "top", legend.key.size = unit(2.5,"line"),
-      legend.text = element_text(size = rel(1)),
-      legend.key.width = unit(2.5,"line"),
-      #panel.grid = element_blank()
-     )
+        data_plot() %>%
+    
+            ggplot(aes(x=Ns, y=y))+
+    
+            geom_path(size = 2,
+                      color = case_when(input$texture_choice == "Clay" ~ "#ba3037",
+                                        input$texture_choice == "Medium" ~ "#2c61d4",
+                                        input$texture_choice == "Coarse" ~ "#5e691f"))+
+    
+            scale_y_continuous(breaks=seq(0,20000, 2000), limits = c(0,18000))+
+    
+            scale_x_continuous(breaks=seq(0,400, 50), limits = c(0,400))+
+    
+            theme_bw()+
+    
+            labs(x = bquote(~ N[soil+fertilizer]* '(kg N ' ~ha^-1*')'),
+                  y = bquote(~ 'Corn Grain Yield (kg' ~ha^-1*')'))+
+    
+            theme(
+              axis.text.x = element_text(size=rel(1.25), color = "black"),
+              axis.text.y = element_text(size=rel(1.25), color = "black"),
+              axis.title = element_text(size=rel(1.75), color = "black"),
+              strip.text = element_text(size=rel(1.25), color = "black"),
+              legend.title = element_text(size = rel(1)),
+              legend.position = "top", legend.key.size = unit(2.5,"line"),
+              legend.text = element_text(size = rel(1)),
+              legend.key.width = unit(2.5,"line"),
+             )
+
 })
 
-renderPlot({ plot()  } )
+renderPlot({
 
-#plotly::renderPlotly({ plotly_plot() })
+  plot()
+
+})
 
 ```
 
@@ -197,14 +146,23 @@ Column {data-width=180}
 
 ```{r}
 
-PRatio <- eventReactive( input$N_price / input$Grain_price,
-                          round(as.numeric(input$N_price/ input$Grain_price), 1) )
+PRatio <- eventReactive( 
+  
+  input$N_price / input$Grain_price,
+  round(as.numeric(input$N_price/ input$Grain_price), 1)
+  
+  )
 
 flexdashboard::renderGauge({
-  flexdashboard::gauge( PRatio(), min = 0, max = 15, symbol = '', 
-  gaugeSectors( success = c(0,6), warning = c(6.001,10), danger = c(12, 15),
-  colors = list("green", "orange", "red")) )
+  
+  flexdashboard::gauge( PRatio(), min = 0, max = 15, symbol = '',
+                        gaugeSectors( success = c(0,6), warning = c(6.001,10), danger = c(12, 15),
+                                      colors = list("green", "orange", "red")
+                        )
+  )
+  
 })
+
 ```
 
 ### Box
@@ -212,10 +170,13 @@ flexdashboard::renderGauge({
 ```{r}
 
 flexdashboard::renderValueBox({
+  
   flexdashboard::valueBox(PRatio(), 
             "Price Ratio", 
             icon = "fa-tag", 
-            color = "#2a9d8f") }) 
+            color = "#2a9d8f")
+  
+  }) 
 
 
 ```
