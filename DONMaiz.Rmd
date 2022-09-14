@@ -78,6 +78,17 @@ Column {data-width=150}
 ### Inputs
 
 ```{r}
+# Soil Texture
+shiny::selectInput(
+  inputId = "texture_choice",
+  label   = "Select soil texture group",
+  choices = texture_list)
+
+# Yield Environment
+shiny::selectInput(
+  inputId = "yield_environment_choice",
+  label   = "Select yield environment level",
+  choices = yield_environment_list )
 
 # N price
 shiny::sliderInput("N_price", "N cost, $/kg N", value = 1.0,  min = 0.5, max = 3.5)
@@ -86,17 +97,7 @@ shiny::sliderInput("N_price", "N cost, $/kg N", value = 1.0,  min = 0.5, max = 3
 shiny::sliderInput("Grain_price", "Grain price, $/kg grain", value = 0.1,  min = 0.05, max = 0.2)
 
 # Soil N
-shiny::sliderInput("PPNT", "Pre-plant NO3-N Test, kg N/ha", value = 60,  min = 0, max = 300)
-
-shiny::selectInput(
-  inputId = "texture_choice",
-  label   = "Select soil texture group",
-  choices = texture_list)
-
-shiny::selectInput(
-  inputId = "yield_environment_choice",
-  label   = "Select yield environment level",
-  choices = yield_environment_list )
+shiny::sliderInput("PPNT", "Pre-plant NO3-N Test, kg N/ha", value = 60,  min = 0, max = 200)
 
 # Defining reactive
 
@@ -202,7 +203,7 @@ renderPlot({ plot()  } )
 
 ```
 
-Column {data-width=180}
+Column {data-width=80}
 -----------------------------------------------------------------------
 
 ### Prices Ratio
@@ -219,34 +220,20 @@ flexdashboard::renderGauge({
 })
 ```
 
-### Box
 
-```{r}
-
-flexdashboard::renderValueBox({
-  flexdashboard::valueBox(PRatio(), 
-            "Price Ratio", 
-            icon = "fa-tag", 
-            color = "steelblue") }) 
-
-
-```
-
-
-
-
-### Dosis Optima Agronomica
-
-```{r}
+```{r include=FALSE, echo = FALSE}
 EONR_table <- reactive({ 
               coeff %>%
                 mutate(PR = PRatio(), #replace with reactive value
                      PPNT = PPNT() ) %>% 
-                mutate(AONR = AONav - PPNT,
-                     EONav = (PR - B1)/(2*B2),
-                     EONR = EONav - PPNT) })
+                mutate(AONR = round(AONav - PPNT, 0),
+                       AONR = ifelse(AONR <0 , 0, AONR),
+                       EONav = round((PR - B1)/(2*B2), 0),
+                       EONR = round(EONav - PPNT, 0),
+                       EONR = ifelse(EONR <0 , 0, EONR)) })
 ```
 
+### Dosis Optima Agronomica
 ```{r}
 
 flexdashboard::renderValueBox({
@@ -254,7 +241,7 @@ flexdashboard::renderValueBox({
     EONR_table()[["EONR"]][[1]]
                             , 
             "AONR", 
-            icon = "fa-tag", 
+            icon = "fa-seedling", 
             color = "steelblue") }) 
 
 ```
@@ -266,7 +253,7 @@ flexdashboard::renderValueBox({
 flexdashboard::renderValueBox({
   flexdashboard::valueBox(PRatio(), 
             "EONR", 
-            icon = "fa-tag", 
+            icon = "fa-coins", 
             color = "green") }) 
 
 ```
