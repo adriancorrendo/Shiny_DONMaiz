@@ -11,8 +11,8 @@ output:
         theme:
             bg: "#edeec9"
             fg: "#272640"
-            primary: "#272640"
-            navbar-bg: "#fb8f67"
+            primary: "#d19d43"
+            navbar-bg: "#cc8125"
             base_font: !expr bslib::font_google("Oswald")
 runtime: shiny
 ---
@@ -45,33 +45,36 @@ coeff <- readRDS( file = "data/coeff.RDS")
 ### Inputs
 
 ```{r}
-
-# N price
-shiny::sliderInput("N_price", "N cost, $/kg N", value = 1.0,  min = 0.5, max = 3.5)
-
-# Grain price
-shiny::sliderInput("Grain_price", "Grain price, $/kg grain", value = 0.1,  min = 0.05, max = 0.2)
-
-# Soil N
-shiny::sliderInput("PPNT", "Pre-plant NO3-N Test, kg N/ha", value = 60,  min = 0, max = 300)
-
+# Yield Environment
 shiny::selectInput(
   inputId = "texture_choice",
-  label   = "Select soil texture group",
-  choices = c("Very-Low (<8.5 Mg/ha)" = "1.Muy bajo",
-              "Low (>8.5 Mg/ha)" = "2.Bajo",
-              "Medium (>10.1 Mg/ha)" = "3.Medio",
-              "High (>11.5 Mg/ha)" = "4.Alto",
-              "Very-High (>13.1 Mg/ha)" = "5.Muy Alto")
+  label   = "Seleccione Ambiente de Rendimiento",
+  choices = c("Muy Bajo (<8.5 Mg/ha)" = "1.Muy bajo",
+              "Bajo (>8.5 Mg/ha)" = "2.Bajo",
+              "Medio (>10.1 Mg/ha)" = "3.Medio",
+              "Alto (>11.5 Mg/ha)" = "4.Alto",
+              "Muy Alto (>13.1 Mg/ha)" = "5.Muy Alto")
   )
 
+# Soil Texture
 shiny::selectInput(
   inputId = "yield_environment_choice",
-  label   = "Select yield environment level",
-  choices = c("Clay" = "Fine",
-              "Medium" = "Medium",
-              "Coarse" = "Coarse")
+  label   = "Seleccione Textura de Suelo",
+  choices = c("Arcilloso" = "Fine",
+              "Medio" = "Medium",
+              "Arenoso" = "Coarse")
   )
+
+# N price
+shiny::sliderInput("N_price", "Costo N, US$/kg N", value = 2.8,  min = 1, max = 3.0, step = 0.1)
+
+# Grain price
+shiny::sliderInput("Grain_price", "Precio Grano, US$/kg grano", value = 0.22,  min = 0.1, max = 0.7, step = 0.1)
+
+# Soil N
+shiny::sliderInput("PPNT", "N-NO3 Pre-siembra, kg N/ha (0-60cm)", value = 70,  min = 0, max = 250, step = 50)
+
+
 
 ```
 
@@ -103,8 +106,8 @@ plotgraph <- reactive({
     
             theme_bw()+
     
-            labs(x = bquote(~ N[soil+fertilizer]* '(kg N ' ~ha^-1*')'),
-                  y = bquote(~ 'Corn Grain Yield (kg' ~ha^-1*')'))+
+            labs(x = bquote(~ N[suelo+fertilizante]* '(kg N ' ~ha^-1*')'),
+                  y = bquote(~ 'Rendimiento Maiz (kg' ~ha^-1*')'))+
     
             theme(
               axis.text.x = element_text(size=rel(1.25), color = "black"),
@@ -128,7 +131,7 @@ renderPlot({
 
 ## Column {data-width="180"}
 
-### Price Ratio
+### Relacion de Precios
 ```{r}
 
 PRatio <- eventReactive( 
@@ -169,7 +172,7 @@ Outputs <- reactive({
 
 flexdashboard::renderValueBox({
   
-  flexdashboard::valueBox(paste(round(Outputs()$AONr,2), "kg N/ha"), 
+  flexdashboard::valueBox(paste(round(Outputs()$AONr,0), "kg N/ha"), 
             "Dosis Optima Agronomica", 
             icon = "fa-leaf", 
             color = "#2a9d8f")
@@ -184,7 +187,7 @@ flexdashboard::renderValueBox({
 
 flexdashboard::renderValueBox({
   
-  flexdashboard::valueBox(paste(round(Outputs()$EONr, 2), "kg N/ha"), 
+  flexdashboard::valueBox(paste(round(Outputs()$EONr, 0), "kg N/ha"), 
             "Dosis Optima Economica", 
             icon = "fa-usd", 
             color = "#fb8f67")
