@@ -38,6 +38,7 @@ tags$style("@import url(https://use.fontawesome.com/releases/v6.1.1/css/all.css)
 curvas <- readRDS( file = "data/curvas.RDS")
 coeff <- readRDS( file = "data/coeff.RDS")
 
+
 ```
 
 Main {data-orientation=columns}
@@ -245,6 +246,34 @@ flexdashboard::renderValueBox({
 ```
 
 ### 
+
+Datos propios {data-orientation=columns}
+===================================== 
+
+```{r}
+
+source(file = "quadratic_plateau.R")
+
+data_ex <- read.csv(file = "data_corn.csv", header = TRUE)
+
+ggplotly(quadratic_plateau(data = data_ex, yield = y, Nav = x, plot = TRUE))
+
+model <- quadratic_plateau(data = data_ex, yield = y, Nav = x, plot = FALSE, tidy = TRUE)
+
+PPNT <- 20
+PRatio <- 10
+
+model_q <- model %>% 
+mutate(AONav = CSTV,
+       AONr = ifelse(AONav - PPNT >= 0, AONav - PPNT, 0),
+       B2 = slope / (2*AONav),
+       EONav = (PRatio - slope)/(2*B2),
+       EONr = ifelse(((PRatio - slope)/(2*B2)- PPNT) >= 0,
+                     ((PRatio - slope)/(2*B2)- PPNT),0 )  )
+
+```
+
+
 
 About {data-orientation=columns}
 ===================================== 

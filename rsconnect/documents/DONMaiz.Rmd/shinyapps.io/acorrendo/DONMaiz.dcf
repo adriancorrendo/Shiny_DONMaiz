@@ -5,9 +5,9 @@ account: acorrendo
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 7048808
-bundleId: 6315270
+bundleId: 6315280
 url: https://acorrendo.shinyapps.io/DONMaiz/
-when: 1663563423.97143
-lastSyncTime: 1663563423.97144
+when: 1663563721.2392
+lastSyncTime: 1663563721.23921
 asMultiple: FALSE
 asStatic: FALSE
