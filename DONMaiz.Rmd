@@ -94,7 +94,7 @@ data_plot <- reactive({
 ```{r}
 
 # Create plotly
-output$plotly_1 <-renderPlotly({
+renderPlotly({
    
    plot <- curvas %>%
      # filter(Q == "4.Alto",
@@ -145,7 +145,7 @@ output$plotly_1 <-renderPlotly({
  })
 
 # Render plotly 
-plotlyOutput(outputId = "plotly_1")
+#plotlyOutput(outputId = "plotly_1")
 
 
 ```
@@ -174,8 +174,6 @@ flexdashboard::renderGauge({
 })
 
 ```
-
-### RECOMENDACIONES
 
 ### Disponibilidad Optima Agronomica
 ```{r}
