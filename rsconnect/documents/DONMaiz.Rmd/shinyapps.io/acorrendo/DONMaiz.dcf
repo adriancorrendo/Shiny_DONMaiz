@@ -1,0 +1,13 @@
+name: DONMaiz
+title: DONMaiz
+username:
+account: acorrendo
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 7048808
+bundleId: 6315270
+url: https://acorrendo.shinyapps.io/DONMaiz/
+when: 1663563423.97143
+lastSyncTime: 1663563423.97144
+asMultiple: FALSE
+asStatic: FALSE
