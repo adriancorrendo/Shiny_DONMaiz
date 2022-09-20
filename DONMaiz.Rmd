@@ -29,6 +29,7 @@ library(ggplot2)
 library(xgboost)
 library(plotly)
 library(DT)
+library(readxl)
 tags$style("@import url(https://use.fontawesome.com/releases/v6.1.1/css/all.css);")
 ```
 
@@ -37,12 +38,10 @@ tags$style("@import url(https://use.fontawesome.com/releases/v6.1.1/css/all.css)
 # Loading Data
 curvas <- readRDS( file = "data/curvas.RDS")
 coeff <- readRDS( file = "data/coeff.RDS")
-
-
+source(file = "quadratic_plateau.R")
 ```
 
-Main {data-orientation=columns}
-===================================== 
+# Main {data-orientation="columns"}
 
 ## Column {data-width="150"}
 
@@ -98,8 +97,6 @@ data_plot <- reactive({
 renderPlotly({
    
    plot <- curvas %>%
-     # filter(Q == "4.Alto",
-     #        TEXT == "Medium" ) %>% 
      filter(Q == input$texture_choice,
             TEXT == input$yield_environment_choice ) %>% 
      ggplot(aes(x = Ns, y = y))+
@@ -145,16 +142,12 @@ renderPlotly({
  
  })
 
-# Render plotly 
-#plotlyOutput(outputId = "plotly_1")
-
-
 ```
-
 
 ## Column {data-width="180"}
 
 ### RELACION DE PRECIOS
+
 ```{r}
 
 PRatio <- eventReactive( 
@@ -177,6 +170,7 @@ flexdashboard::renderGauge({
 ```
 
 ### Disponibilidad Optima Agronomica
+
 ```{r}
 
 Outputs <- reactive({
@@ -203,6 +197,7 @@ flexdashboard::renderValueBox({
 ```
 
 ### Dosis Optima Agronomica
+
 ```{r}
 
 flexdashboard::renderValueBox({
@@ -216,6 +211,7 @@ flexdashboard::renderValueBox({
 ```
 
 ### Disponibilidad Optima Economica
+
 ```{r}
 
 flexdashboard::renderValueBox({
@@ -224,10 +220,9 @@ flexdashboard::renderValueBox({
             "Disponibilidad Optima Economica", 
             icon = "fa-coins", 
             color = "#a6808c")
-  }) 
+  })
 
 ```
-
 
 ### Dosis Optima Economica
 
@@ -245,51 +240,207 @@ flexdashboard::renderValueBox({
 
 ```
 
-### 
+# Datos propios {data-orientation="columns"}
 
-Datos propios {data-orientation=columns}
-===================================== 
+## Column {data-width="150"}
+
+### INSTRUCCIONES
+
+```{r}
+#Insert Files
+shiny::fileInput(inputId = "file_input",
+                 label = "1. Ingrese sus archivos",
+                 accept = c(".csv",".xlsx", ".xls"),
+                 buttonLabel = ".csv, .xlsx o .xls")
+p("Advertencia: su archivo debe tener dos columnas, la primera columna debe ser la cantidad de N en el suelo y la segunda columna la producción", style="font-size:10px; color: red")
+
+# Soil N
+shiny::sliderInput("PPNT_DP", "2. N-NO3 Pre-siembra, kg N/ha (0-60cm)", value = 70,  min = 0, max = 250, step = 50)
+
+# N price
+shiny::sliderInput("N_price_DP", "3. Costo N, US$/kg N", value = 2.8,  min = 1, max = 3.0, step = 0.1)
+
+# Grain price
+shiny::sliderInput("Grain_price_DP", "4. Precio Grano, US$/kg grano", value = 0.22,  min = 0.1, max = 0.7, step = 0.1)
+
+# Reading inserted file
+data_input <- reactive({
+    file <- input$file_input
+    extplaceBase <- tools::file_ext(file$datapath)
+    if(extplaceBase == "csv"){
+      read.csv(file$datapath,
+               header = TRUE)
+    }
+    else{
+      read_excel(file$datapath)
+    }
+  })
+
+```
+
+## Column {data-width="400"}
+
+### CURVA DE RESPUESTA PROBABLE
 
 ```{r}
 
-source(file = "quadratic_plateau.R")
+# Transforming in quadratic plateau
+data_transformed <- reactive({
+   
+  if(is.null(input$file_input)){
+     return()
+  }
+  else{
+    data_transformed <- quadratic_plateau(data = data_input(),
+                              yield = data_input()[,2],
+                              Nav = data_input()[,1],
+                              plot = FALSE,
+                              tidy = TRUE)
+  }
+ })
 
-data_ex <- read.csv(file = "data_corn.csv", header = TRUE)
+# Create plotly
+renderPlotly({
+  if(is.null(input$file_input)){
+     return()
+  }
+  else{
+  ggplotly(quadratic_plateau(data = data_input(),
+                              yield = data_input()[,2],
+                              Nav = data_input()[,1],
+                              plot = TRUE,
+                              tidy = TRUE))
+  }
+})
 
-ggplotly(quadratic_plateau(data = data_ex, yield = y, Nav = x, plot = TRUE))
 
-model <- quadratic_plateau(data = data_ex, yield = y, Nav = x, plot = FALSE, tidy = TRUE)
+```
 
-PPNT <- 20
-PRatio <- 10
+## Column {data-width="180"}
 
-model_q <- model %>% 
-mutate(AONav = CSTV,
-       AONr = ifelse(AONav - PPNT >= 0, AONav - PPNT, 0),
-       B2 = slope / (2*AONav),
-       EONav = (PRatio - slope)/(2*B2),
-       EONr = ifelse(((PRatio - slope)/(2*B2)- PPNT) >= 0,
-                     ((PRatio - slope)/(2*B2)- PPNT),0 )  )
+### RELACION DE PRECIOS
+
+```{r}
+
+PRatio_DP <- eventReactive( 
+  
+  input$N_price_DP / input$Grain_price_DP,
+  round(as.numeric(input$N_price_DP/ input$Grain_price_DP), 1)
+  
+  )
+
+flexdashboard::renderGauge({
+  
+  flexdashboard::gauge( PRatio_DP(), min = 0, max = 15, symbol = '',
+                        gaugeSectors( success = c(0,6), warning = c(6.001,12), danger = c(12, 15),
+                                      colors = c("#2a9d8f", "#fcbf49", "#ce4257")
+                        )
+  )
+  
+})
+
+```
+
+### Disponibilidad Optima Agronomica
+
+```{r}
+
+Outputs_DP <- reactive({
+  if(is.null(input$file_input)){
+     return()
+  }
+  else{
+  data_transformed()%>% 
+        mutate(AONav = CSTV,
+               AONr = ifelse(AONav - input$PPNT >= 0,
+                             AONav - input$PPNT, 0),
+               B2 = slope / (2*AONav),
+               EONav = ifelse((PRatio() - slope)/(2*B2) >= 0,
+                              (PRatio() - slope)/(2*B2), 0),
+               EONr = ifelse(((PRatio() - slope)/(2*B2)- input$PPNT) >= 0,
+                             ((PRatio() - slope)/(2*B2)- input$PPNT), 0)
+               )
+  }
+})
+
+
+flexdashboard::renderValueBox({
+  if(is.null(input$file_input)){
+     return()
+  }else{
+  flexdashboard::valueBox(paste(round(Outputs_DP()$AONav,0), "kg N/ha"), 
+            "Disponibilidad Optima Agronomica", 
+            icon = "fa-bullseye", 
+            color = "steelblue")
+  }
+  }) 
+
+```
+
+### Dosis Optima Agronomica
+
+```{r}
+
+flexdashboard::renderValueBox({
+  if(is.null(input$file_input)){
+     return()
+  }else{
+  flexdashboard::valueBox(paste(round(Outputs_DP()$AONr,0), "kg N/ha"), 
+            "Dosis Optima Agronomica", 
+            icon = "fa-seedling", 
+            color = "#2a9d8f")
+  }
+  }) 
+
+```
+
+### Disponibilidad Optima Economica
+
+```{r}
+
+flexdashboard::renderValueBox({
+  if(is.null(input$file_input)){
+     return()
+  }else{
+  flexdashboard::valueBox(paste(round(Outputs_DP()$EONav,0), "kg N/ha"), 
+            "Disponibilidad Optima Economica", 
+            icon = "fa-coins", 
+            color = "#a6808c")
+  }
+  }) 
+
+```
+
+### Dosis Optima Economica
+
+```{r}
+
+
+flexdashboard::renderValueBox({
+  if(is.null(input$file_input)){
+     return()
+  }else{
+  flexdashboard::valueBox(paste(round(Outputs_DP()$EONr, 0), "kg N/ha"), 
+            "Dosis Optima Economica", 
+            icon = "fa-usd", 
+            color = "#fb8f67")
+  }
+  }) 
 
 ```
 
 
+# About {data-orientation="columns"}
 
-About {data-orientation=columns}
-===================================== 
+## Column {data-width="5"}
 
-Column {data-width=5}
------------------------------------------------------------------------
+## Column {data-width="40"}
 
-Column {data-width=40}
------------------------------------------------------------------------
-<a href = "https://ciampittilab.wixsite.com/ciampitti-lab"><img src = "logo_ciampitti.png" height = 120 width = 120></a>
+<a href = "https://ciampittilab.wixsite.com/ciampitti-lab"><img src="logo_ciampitti.png" height="120" width="120"/></a>
 
-Column {data-width=5}
------------------------------------------------------------------------
+## Column {data-width="5"}
 
-Column {data-width=400}
------------------------------------------------------------------------
+## Column {data-width="400"}
 
 ```{r}
 
@@ -322,9 +473,9 @@ mainPanel(
 
 ```
 
-<a href = "https://doi.org/10.1016/j.fcr.2021.108299"><img src = "paper_screenshot.png" height = 300 width = 240></a>
+<a href = "https://doi.org/10.1016/j.fcr.2021.108299"><img src="paper_screenshot.png" height="300" width="240"/></a>
 
-<a href = "https://doi.org/10.1016/j.fcr.2021.108299"><img src = "FIG 1.png" height = 300 width = 375></a>
+<a href = "https://doi.org/10.1016/j.fcr.2021.108299"><img src="FIG 1.png" height="300" width="375"/></a>
 
 ```{r}
 
@@ -336,4 +487,3 @@ mainPanel(h3("Credits"),
           )
 
 ```
-
