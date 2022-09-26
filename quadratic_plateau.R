@@ -164,7 +164,7 @@ quadratic_plateau <- function(data = NULL,
   
   # Error message for insufficient sample size
   if (length(x) < 4) {
-    stop("Too few distinct input values to fit LP. Tyield at least 4.")
+    stop("Too few distinct input values to fit Quadratic Plateau model. Try at least 4 data points.")
   }
   
   # Extreme values

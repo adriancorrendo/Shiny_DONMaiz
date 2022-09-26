@@ -1,0 +1,13 @@
+name: DONMaiz
+title: DONMaiz
+username:
+account: ciampittilab
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 7112271
+bundleId: 6336996
+url: https://ciampittilab.shinyapps.io/DONMaiz/
+when: 1664153952.35488
+lastSyncTime: 1664153952.35488
+asMultiple: FALSE
+asStatic: FALSE
