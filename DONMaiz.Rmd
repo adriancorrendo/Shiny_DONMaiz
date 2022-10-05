@@ -14,6 +14,7 @@ output:
             primary: "#d19d43"
             navbar-bg: "#cc8125"
             base_font: !expr bslib::font_google("Oswald")
+        vertical_layout: scroll
 runtime: shiny
 ---
 
@@ -22,6 +23,8 @@ library(flexdashboard)
 library(shiny)
 library(shinydashboard)
 library(shinythemes)
+library(shinyWidgets)
+library(shinyjs)
 library(bslib)
 library(dplyr)
 library(tidyr)
@@ -50,6 +53,8 @@ source(file = "quadratic_plateau.R")
 ### INSTRUCCIONES
 
 ```{r}
+useShinyjs(rmd = TRUE)
+
 # Yield Environment
 shiny::selectInput(
   inputId = "texture_choice",
@@ -79,13 +84,55 @@ shiny::sliderInput("N_price", "4. Costo N, US$/kg N", value = 2.8,  min = 1, max
 # Grain price
 shiny::sliderInput("Grain_price", "5. Precio Grano, US$/kg grano", value = 0.22,  min = 0.1, max = 0.7, step = 0.1)
 
+actionButton(inputId = "applyPr", label = "Apply", icon = icon("play"))
+actionButton(inputId = "reset", label = "Reset", icon = icon("sync"))
+
+observeEvent(eventExpr = input$reset, handlerExpr = {
+  
+  updateSelectInput(
+    session = session,
+    inputId = "texture_choice",
+    selected = "1.Muy bajo"
+  )
+  
+  updateSelectInput(
+    session = session,
+    inputId = "yield_environment_choice",
+    selected = "Fine"
+  )
+  
+  updateSliderInput(
+    session = session,
+    inputId = "PPNT",
+    value = 70
+  )
+  
+  updateSliderInput(
+    session = session,
+    inputId = "N_price",
+    value = 2.8
+  )
+  
+  updateSliderInput(
+    session = session,
+    inputId = "Grain_price",
+    value = 0.22
+  )
+  
+  shinyjs::delay(ms = 100, expr = {
+      shinyjs::click(id = "applyPr")
+  })
+  
+})
 
 # Reactive data after choices
-data_plot <- reactive({
+data_plot <- eventReactive(eventExpr = input$applyPr,
+                           valueExpr = {
   curvas %>%
      filter(Q == input$texture_choice,
             TEXT == input$yield_environment_choice )
-  })
+  },
+  ignoreNULL = FALSE)
 
 ```
 
@@ -96,18 +143,14 @@ data_plot <- reactive({
 ```{r}
 
 # Create plotly
-renderPlotly({
+output$plotly_1 <-  renderPlotly({
    
-   plot <- curvas %>%
-     filter(Q == input$texture_choice,
-            TEXT == input$yield_environment_choice ) %>% 
+   plot <- data_plot() %>% 
      ggplot(aes(x = Ns, y = y))+
      geom_path(size = 2,
                        color = case_when(
                          input$yield_environment_choice == "Fine" ~ "#ba3037",
                          input$yield_environment_choice == "Medium" ~ "#2c61d4",                                     TRUE ~ "#5e691f"))+
-     # scale_y_continuous(breaks=seq(0,16000, 1000), limits = c(0,16000))+
-     # scale_x_continuous(breaks=seq(0,400, 50), limits = c(0,400))+
      geom_vline(xintercept = Outputs()$AONav, size = 1,
                 linetype = "dashed", color = "steelblue")+
      geom_vline(xintercept = Outputs()$EONav, size = 1,
@@ -147,6 +190,8 @@ renderPlotly({
  
  })
 
+plotlyOutput(outputId = "plotly_1")
+
 ```
 
 ## Column {data-width="150"}
@@ -155,12 +200,14 @@ renderPlotly({
 
 ```{r}
 
-PRatio <- eventReactive( 
+PRatio <- eventReactive(eventExpr = input$applyPr,
+                        valueExpr = {
   
-  input$N_price / input$Grain_price,
-  round(as.numeric(input$N_price/ input$Grain_price), 1)
-  
-  )
+  input$N_price / input$Grain_price
+  out <- round(as.numeric(input$N_price/ input$Grain_price), 1)
+  out
+  },
+                          ignoreNULL = FALSE)
 
 flexdashboard::renderGauge({
   
@@ -178,7 +225,8 @@ flexdashboard::renderGauge({
 
 ```{r}
 
-Outputs <- reactive({
+Outputs <- eventReactive(eventExpr = input$applyPr,
+                        valueExpr = {
   
   coeff %>%
     filter(Q == input$texture_choice,
@@ -188,7 +236,8 @@ Outputs <- reactive({
            EONav = (PRatio() - b)/(2*B2),
            EONr = ifelse(((PRatio() - b)/(2*B2)- input$PPNT) >= 0,((PRatio() - b)/(2*B2)- input$PPNT),0 )  )
 
-})
+},
+ignoreNULL = FALSE)
 
 
 flexdashboard::renderValueBox({
@@ -252,6 +301,8 @@ flexdashboard::renderValueBox({
 ### INSTRUCCIONES
 
 ```{r}
+useShinyjs(rmd = TRUE)
+
 #Insert Files
 shiny::fileInput(inputId = "file_input",
                  label = "1. Ingrese sus datos",
@@ -289,6 +340,34 @@ shiny::sliderInput("N_price_DP", "3. Costo N, US$/kg N", value = 2.8,  min = 1, 
 # Grain price
 shiny::sliderInput("Grain_price_DP", "4. Precio Grano, US$/kg grano", value = 0.22,  min = 0.1, max = 0.7, step = 0.01)
 
+actionButton(inputId = "applyDp", label = "Apply", icon = icon("play"))
+actionButton(inputId = "resetDp", label = "Reset", icon = icon("sync"))
+
+observeEvent(eventExpr = input$resetDp, handlerExpr = {
+  
+  updateSliderInput(
+    session = session,
+    inputId = "PPNT_DP",
+    value = 70
+  )
+  
+  updateSliderInput(
+    session = session,
+    inputId = "N_price_DP",
+    value = 2.8
+  )
+  
+  updateSliderInput(
+    session = session,
+    inputId = "Grain_price_DP",
+    value = 0.22
+  )
+  
+  shinyjs::delay(ms = 100, expr = {
+      shinyjs::click(id = "applyDp")
+  })
+  
+})
 ```
 
 Column {data-width=400}
@@ -299,7 +378,8 @@ Column {data-width=400}
 ```{r}
 
 # Transforming in quadratic plateau
-QP_fit <- reactive({
+QP_fit <- eventReactive(eventExpr = input$applyDp,
+                        valueExpr = {
    
   if(is.null(input$file_input)){
      return()
@@ -311,13 +391,13 @@ QP_fit <- reactive({
                               plot = FALSE,
                               tidy = TRUE)
   }
- })
+ }, ignoreNULL = FALSE)
 
 
 
 
 # Create plotly
-renderPlotly({
+output$plotly_2 <-renderPlotly({
   if(is.null(input$file_input)){
      return()
   }
@@ -369,6 +449,7 @@ renderPlotly({
   }
 })
 
+plotlyOutput(outputId = "plotly_2")
 
 ```
 
@@ -379,12 +460,14 @@ Column {data-width=150}
 
 ```{r}
 
-PRatio_DP <- eventReactive( 
+PRatio_DP <- eventReactive(eventExpr = input$applyDp,
+                        valueExpr = {
   
-  input$N_price_DP / input$Grain_price_DP,
-  round(as.numeric(input$N_price_DP/ input$Grain_price_DP), 1)
-  
-  )
+  input$N_price_DP / input$Grain_price_DP
+  out <- round(as.numeric(input$N_price_DP/ input$Grain_price_DP), 1)
+  out
+  },
+  ignoreNULL = FALSE)
 
 flexdashboard::renderGauge({
   
@@ -402,7 +485,8 @@ flexdashboard::renderGauge({
 
 ```{r}
 
-Outputs_DP <- reactive({
+Outputs_DP <- eventReactive(eventExpr = input$applyDp,
+                        valueExpr = {
   if(is.null(input$file_input)){
      return()
   }
@@ -418,9 +502,10 @@ Outputs_DP <- reactive({
                              ((PRatio_DP() - slope)/(2*B2)- input$PPNT_DP), 0)
                )
   }
-})
+}, ignoreNULL = FALSE)
 
-pred_curve_DP <- reactive({
+pred_curve_DP <- eventReactive(eventExpr = input$applyDp,
+                        valueExpr = {
   
   tibble::new_tibble(list(x = seq(min(dataset_input()[[paste0(input$Nd_name)]]),
                      max(dataset_input()[[paste0(input$Nd_name)]]),
@@ -428,7 +513,7 @@ pred_curve_DP <- reactive({
     mutate(y = case_when(
       x < Outputs_DP()$AONav ~ Outputs_DP()$intercept + Outputs_DP()$slope * x + Outputs_DP()$B2 * x^2,
       x >= Outputs_DP()$AONav ~ Outputs_DP()$intercept + Outputs_DP()$slope * Outputs_DP()$AONav + Outputs_DP()$B2 * Outputs_DP()$AONav^2))
-   })
+   }, ignoreNULL = FALSE)
 
 
 flexdashboard::renderValueBox({
