@@ -9,10 +9,12 @@ output:
            - { icon: "fa-twitter", href: "https://twitter.com/aacorrendo/", align: right}
            - { icon: "fa-linkedin", href: "https://www.linkedin.com/in/adriancorrendo/", align: right}
         theme:
-            bg: "#fb8f67"
+            bg: "#edeec9"
             fg: "#272640"
-            primary: "#edeec9"
+            primary: "#d19d43"
+            navbar-bg: "#cc8125"
             base_font: !expr bslib::font_google("Oswald")
+        vertical_layout: scroll
 runtime: shiny
 ---
 
@@ -21,6 +23,8 @@ library(flexdashboard)
 library(shiny)
 library(shinydashboard)
 library(shinythemes)
+library(shinyWidgets)
+library(shinyjs)
 library(bslib)
 library(dplyr)
 library(tidyr)
@@ -28,233 +32,547 @@ library(ggplot2)
 library(xgboost)
 library(plotly)
 library(DT)
-library(ggplot2)
+library(readxl)
+library(tools)
+library(tibble)
 tags$style("@import url(https://use.fontawesome.com/releases/v6.1.1/css/all.css);")
-
 ```
 
 ```{r}
-curvas <- readRDS( file = "data/curvas.RDS")
-coeff <- readRDS( file = "data/coeff.RDS") %>% 
-                  mutate(B0 = a, 
-                         B1 = b,
-                         AONav = Xc) %>% 
-                  dplyr::select(-a,-b,-Xc, -Percentile)
-
+# Loading Data
+curvas <- readRDS(file = "data/curvas.RDS")
+coeff <- readRDS(file = "data/coeff.RDS")
+source(file = "quadratic_plateau.R")
 ```
 
+# Principal {data-orientation="columns"}
+
+## Column {data-width="150"}
+
+### INSTRUCCIONES
 
 ```{r}
-soil_texture_colors <- c("#43aa8b","#f9844a","#a01a58")
-
-```
-
-
-```{r echo = FALSE}
-# Loading DATA / MODEL ----
-#xgb_spring_final_model <- readRDS(file = "data/MLmodel.rds")
-```
-
-```{r echo = FALSE}
-# Define list of options for inputs
-
-# Texture list
-texture_list = list("Clay",
-                    "Medium",
-                    "Coarse")
-
-# Yield list
-yield_environment_list = list("5. Very-High (>13.1 Mg/ha)", 
-                              "4. High (>11.5 Mg/ha)", 
-                              "3. Medium (>10.1 Mg/ha)", 
-                              "2. Low (>8.5 Mg/ha)",
-                              "1. Very-Low (<8.5 Mg/ha)" )
-
-```
-
-Column {data-width=150}
------------------------------------------------------------------------
-
-### Inputs
-
-```{r}
-# Soil Texture
-shiny::selectInput(
-  inputId = "texture_choice",
-  label   = "Select soil texture group",
-  choices = texture_list)
-
+useShinyjs(rmd = TRUE)
 # Yield Environment
 shiny::selectInput(
+  inputId = "texture_choice",
+  label   = "1. Seleccione Ambiente de Rendimiento",
+  choices = c("Muy Bajo (<8.5 Mg/ha)" = "1.Muy bajo",
+              "Bajo (>8.5 Mg/ha)" = "2.Bajo",
+              "Medio (>10.1 Mg/ha)" = "3.Medio",
+              "Alto (>11.5 Mg/ha)" = "4.Alto",
+              "Muy Alto (>13.1 Mg/ha)" = "5.Muy Alto")
+  )
+# Soil Texture
+shiny::selectInput(
   inputId = "yield_environment_choice",
-  label   = "Select yield environment level",
-  choices = yield_environment_list )
-
-# N price
-shiny::sliderInput("N_price", "N cost, $/kg N", value = 1.0,  min = 0.5, max = 3.5)
-
-# Grain price
-shiny::sliderInput("Grain_price", "Grain price, $/kg grain", value = 0.1,  min = 0.05, max = 0.2)
-
+  label   = "2. Seleccione Textura de Suelo",
+  choices = c("Arcilloso" = "Fine",
+              "Medio" = "Medium",
+              "Arenoso" = "Coarse")
+  )
 # Soil N
-shiny::sliderInput("PPNT", "Pre-plant NO3-N Test, kg N/ha", value = 60,  min = 0, max = 200)
-
-# Defining reactive
-
-# PPNT
-PPNT <- reactive({as.numeric(input$PPNT)})
-
-# Price ratio
-PR <- reactive({ as.numeric(input$N_price/ input$Grain_price) } )
-
-
-# Reactive texture
-chosen_texture <- reactive({ texture_list %>% purrr::pluck(input$texture_choice) })
-
-# Reactive yield
-chosen_yield_environment <- reactive({ yield_environment_list %>% purrr::pluck(input$yield_environment_choice) })
-```
-
-Column {data-width=400}
------------------------------------------------------------------------
-
-```{r}
-ELSE = TRUE
-data_plot <- reactive({
-  curvas %>% 
-     dplyr::filter(case_when(input$texture_choice == "Clay" & 
-                             input$yield_environment_choice == "5. Very-High (>13.1 Mg/ha)" 
-                             ~ QT == "5_FINE",
-                             input$texture_choice == "Clay" & 
-                             input$yield_environment_choice == "4. High (>11.5 Mg/ha)" 
-                             ~ QT == "4_FINE",
-                             input$texture_choice == "Clay" & 
-                             input$yield_environment_choice == "3. Medium (>10.1 Mg/ha)" 
-                             ~ QT == "3_FINE",
-                             input$texture_choice == "Clay" & 
-                             input$yield_environment_choice == "2. Low (>8.5 Mg/ha)" 
-                             ~ QT == "2_FINE",
-                             input$texture_choice == "Clay" & 
-                             input$yield_environment_choice == "1. Very-Low (<8.5 Mg/ha)" 
-                             ~ QT == "1_FINE",
-                             input$texture_choice == "Medium" & 
-                             input$yield_environment_choice == "5. Very-High (>13.1 Mg/ha)" 
-                             ~ QT == "5_MEDIUM",
-                             input$texture_choice == "Medium" & 
-                             input$yield_environment_choice == "4. High (>11.5 Mg/ha)" 
-                             ~ QT == "4_MEDIUM",
-                             input$texture_choice == "Medium" & 
-                             input$yield_environment_choice == "3. Medium (>10.1 Mg/ha)" 
-                             ~ QT == "3_MEDIUM",
-                             input$texture_choice == "Medium" & 
-                             input$yield_environment_choice == "2. Low (>8.5 Mg/ha)" 
-                             ~ QT == "2_MEDIUM",
-                             input$texture_choice == "Medium" & 
-                             input$yield_environment_choice == "1. Very-Low (<8.5 Mg/ha)" 
-                             ~ QT == "1_MEDIUM",
-                             input$texture_choice == "Coarse" & 
-                             input$yield_environment_choice == "5. Very-High (>13.1 Mg/ha)" 
-                             ~ QT == "5_COARSE",
-                             input$texture_choice == "Coarse" & 
-                             input$yield_environment_choice == "4. High (>11.5 Mg/ha)" 
-                             ~ QT == "4_COARSE",
-                             input$texture_choice == "Coarse" & 
-                             input$yield_environment_choice == "3. Medium (>10.1 Mg/ha)" 
-                             ~ QT == "3_COARSE",
-                             input$texture_choice == "Coarse" & 
-                             input$yield_environment_choice == "2. Low (>8.5 Mg/ha)" 
-                             ~ QT == "2_COARSE",
-                             input$texture_choice == "Coarse" & 
-                             input$yield_environment_choice == "1. Very-Low (<8.5 Mg/ha)" 
-                             ~ QT == "1_COARSE") ) })
-
-# Plot
-plot <- reactive({ data_plot() %>%
-    ggplot(aes(x=Ns, y=y))+
-    geom_path(size = 2, 
-              color = case_when(input$texture_choice == "Clay" ~ "#ba3037",
-                                input$texture_choice == "Medium" ~ "#2c61d4",
-                                input$texture_choice == "Coarse" ~ "#5e691f"))+
-    scale_y_continuous(breaks=seq(0,20000, 2000), limits = c(0,18000))+
-    scale_x_continuous(breaks=seq(0,400, 50), limits = c(0,400))+
-    theme_bw()+
-     labs(x = bquote(~ N[soil+fertilizer]* '(kg N ' ~ha^-1*')'), 
-          y = bquote(~ 'Corn Grain Yield (kg' ~ha^-1*')'))+
-    theme(axis.text.x = element_text(size=rel(1.25), color = "black"),
-       axis.text.y = element_text(size=rel(1.25), color = "black"),
-       axis.title = element_text(size=rel(1.75), color = "black"),
-       strip.text = element_text(size=rel(1.25), color = "black"),
-      legend.title = element_text(size = rel(1)),
-      legend.position = "top", legend.key.size = unit(2.5,"line"),
-      legend.text = element_text(size = rel(1)),
-      legend.key.width = unit(2.5,"line"),
-      #panel.grid = element_blank()
-     )
+shiny::sliderInput("PPNT", "3. N-NO3 Pre-siembra, kg N/ha (0-60cm)", value = 70,  min = 0, max = 250, step = 5)
+# N price
+shiny::sliderInput("N_price", "4. Costo N, US$/kg N", value = 2.8,  min = 1, max = 3.0, step = 0.1)
+# Grain price
+shiny::sliderInput("Grain_price", "5. Precio Grano, US$/kg grano", value = 0.22,  min = 0.1, max = 0.7, step = 0.1)
+actionButton(inputId = "applyPr", label = "Apply", icon = icon("play"))
+actionButton(inputId = "reset", label = "Reset", icon = icon("sync"))
+observeEvent(eventExpr = input$reset, handlerExpr = {
+  
+  updateSelectInput(
+    session = session,
+    inputId = "texture_choice",
+    selected = "1.Muy bajo"
+  )
+  
+  updateSelectInput(
+    session = session,
+    inputId = "yield_environment_choice",
+    selected = "Fine"
+  )
+  
+  updateSliderInput(
+    session = session,
+    inputId = "PPNT",
+    value = 70
+  )
+  
+  updateSliderInput(
+    session = session,
+    inputId = "N_price",
+    value = 2.8
+  )
+  
+  updateSliderInput(
+    session = session,
+    inputId = "Grain_price",
+    value = 0.22
+  )
+  
+  shinyjs::delay(ms = 100, expr = {
+      shinyjs::click(id = "applyPr")
+  })
+  
 })
+# Reactive data after choices
+data_plot <- eventReactive(eventExpr = input$applyPr,
+                           valueExpr = {
+  curvas %>%
+     filter(Q == input$texture_choice,
+            TEXT == input$yield_environment_choice )
+  },
+  ignoreNULL = FALSE)
 ```
 
+## Column {data-width="400"}
 
-### Plot
+### CURVA DE RESPUESTA PROBABLE
+
 ```{r}
-
-renderPlot({ plot()  } )
-
-#plotly::renderPlotly({ plotly_plot() })
-
+# Create plotly
+output$plotly_1 <-  renderPlotly({
+   
+   plot <- data_plot() %>% 
+     ggplot(aes(x = Ns, y = y))+
+     geom_path(size = 2,
+                       color = case_when(
+                         input$yield_environment_choice == "Fine" ~ "#ba3037",
+                         input$yield_environment_choice == "Medium" ~ "#2c61d4",                                     TRUE ~ "#5e691f"))+
+     geom_vline(xintercept = Outputs()$AONav, size = 1,
+                linetype = "dashed", color = "steelblue")+
+     geom_vline(xintercept = Outputs()$EONav, size = 1,
+                linetype = "dotted", color = "#a6808c")+
+     ggplot2::annotate("pointrange",
+                       label = "Disponibilidad Optima Agronomica",
+                       shape = 25, size = 4,
+                       x = Outputs()$AONav, y = 0, 
+                       xmin = Outputs()$AONav, xmax = Outputs()$AONav,
+                       color = "grey15", fill = "steelblue",
+                       angle = '90', hjust = 0)+
+     ggplot2::annotate("pointrange",
+                       label = "Disponibilidad Optima Economica",
+                       shape = 25, size = 4,
+                       x = Outputs()$EONav, y = 0, 
+                       xmin = Outputs()$EONav, xmax = Outputs()$EONav,
+                       color = "grey15", fill = "#a6808c", 
+                       angle = '90', hjust = 0)+
+     scale_y_continuous(breaks = c(0,1000,2000,3000,4000,5000,6000,7000,8000,9000,
+                                  10000,11000,12000,13000,14000,15000,16000))+
+    scale_x_continuous(breaks = c(0,50,100,150,200,250,300,350,400,450,500))+
+     theme_bw()+
+     labs(x = "N suelo+fertilizante (kg N/ha, 0-60 cm)",
+          y = "Rendimiento Maiz (kg/ha)")+
+     theme(panel.grid = element_blank(),
+           axis.text.x = element_text(size=rel(1.25), color = "black"),
+           axis.text.y = element_text(size=rel(1.25), color = "black"),
+           axis.title = element_text(size=rel(1.75), color = "black"),
+           strip.text = element_text(size=rel(1.25), color = "black"),
+           legend.title = element_text(size = rel(1)),
+           legend.position = "top", legend.key.size = unit(2.5,"line"),
+           legend.text = element_text(size = rel(1)),
+           legend.key.width = unit(2.5,"line")
+             )
+   
+  ggplotly(plot)
+ 
+ })
+plotlyOutput(outputId = "plotly_1")
 ```
 
-Column {data-width=80}
------------------------------------------------------------------------
+## Column {data-width="150"}
 
-### Prices Ratio
+### RELACION DE PRECIOS
 
 ```{r}
-
-PRatio <- eventReactive( input$N_price / input$Grain_price,
-                          round(as.numeric(input$N_price/ input$Grain_price), 1) )
-
+PRatio <- eventReactive(eventExpr = input$applyPr,
+                        valueExpr = {
+  
+  input$N_price / input$Grain_price
+  out <- round(as.numeric(input$N_price/ input$Grain_price), 1)
+  out
+  },
+                          ignoreNULL = FALSE)
 flexdashboard::renderGauge({
-  flexdashboard::gauge( PRatio(), min = 0, max = 20, symbol = '', 
-  gaugeSectors( success = c(0,6), warning = c(6.001,10), danger = c(12, 15),
-  colors = list("green", "orange", "red")) )
+  
+  flexdashboard::gauge( PRatio(), min = 0, max = 15, symbol = '',
+                        gaugeSectors( success = c(0,6), warning = c(6.001,12), danger = c(12, 15),
+                                      colors = c("#2a9d8f", "#fcbf49", "#ce4257")
+                        )
+  )
+  
 })
 ```
 
+### Disponibilidad Optima Agronomica
 
-```{r include=FALSE, echo = FALSE}
-EONR_table <- reactive({ 
-              coeff %>%
-                mutate(PR = PRatio(), #replace with reactive value
-                     PPNT = PPNT() ) %>% 
-                mutate(AONR = round(AONav - PPNT, 0),
-                       AONR = ifelse(AONR <0 , 0, AONR),
-                       EONav = round((PR - B1)/(2*B2), 0),
-                       EONR = round(EONav - PPNT, 0),
-                       EONR = ifelse(EONR <0 , 0, EONR)) })
+```{r}
+Outputs <- eventReactive(eventExpr = input$applyPr,
+                        valueExpr = {
+  
+  coeff %>%
+    filter(Q == input$texture_choice,
+           TEXT == input$yield_environment_choice)%>%
+    mutate(AONav = Xc,
+           AONr = ifelse(Xc - input$PPNT >= 0, Xc - input$PPNT, 0),
+           EONav = (PRatio() - b)/(2*B2),
+           EONr = ifelse(((PRatio() - b)/(2*B2)- input$PPNT) >= 0,((PRatio() - b)/(2*B2)- input$PPNT),0 )  )
+},
+ignoreNULL = FALSE)
+flexdashboard::renderValueBox({
+  
+  flexdashboard::valueBox(paste(round(Outputs()$AONav,0), "kg N/ha"), 
+            "Disponibilidad Optima Agronomica", 
+            icon = "fa-bullseye", 
+            color = "steelblue")
+  }) 
 ```
 
 ### Dosis Optima Agronomica
+
 ```{r}
-
 flexdashboard::renderValueBox({
-  flexdashboard::valueBox(
-    EONR_table()[["EONR"]][[1]]
-                            , 
-            "AONR", 
+  
+  flexdashboard::valueBox(paste(round(Outputs()$AONr,0), "kg N/ha"), 
+            "Dosis Optima Agronomica", 
             icon = "fa-seedling", 
-            color = "steelblue") }) 
+            color = "#2a9d8f")
+  }) 
+```
 
+### Disponibilidad Optima Economica
+
+```{r}
+flexdashboard::renderValueBox({
+  
+  flexdashboard::valueBox(paste(round(Outputs()$EONav,0), "kg N/ha"), 
+            "Disponibilidad Optima Economica", 
+            icon = "fa-coins", 
+            color = "#a6808c")
+  })
 ```
 
 ### Dosis Optima Economica
 
 ```{r}
-
 flexdashboard::renderValueBox({
-  flexdashboard::valueBox(PRatio(), 
-            "EONR", 
-            icon = "fa-coins", 
-            color = "green") }) 
-
+  
+  flexdashboard::valueBox(paste(round(Outputs()$EONr, 0), "kg N/ha"), 
+            "Dosis Optima Economica", 
+            icon = "fa-usd", 
+            color = "#fb8f67")
+  
+  }) 
 ```
 
+# Datos propios {data-orientation="columns"}
+
+## Column {data-width="150"}
+
+### INSTRUCCIONES
+
+```{r}
+useShinyjs(rmd = TRUE)
+#Insert Files
+shiny::fileInput(inputId = "file_input",
+                 label = "1. Ingrese sus datos",
+                 accept = c(".csv",".xls", ".xlsx"),
+                 buttonLabel = ".csv, .xls o .xlsx")
+p("Nota: su archivo debe tener dos columnas: i) N disponible (kg/ha, suelo + fertilizante), y ii) rendimiento (kg/ha).", style="font-size:12px; color: red")
+# Reading inserted file
+dataset_input <- reactive({
+  inFile <- input$file_input
+# READING THE FILE WHEN THE USER UPLOADS A CSV / XLS / XLSX
+  if (!is.null( inFile )) {
+    extension <- tools::file_ext(inFile$name)
+    filepath <- inFile$datapath
+    data_set <- switch(extension, 
+                         csv = readr::read_csv(filepath),
+                         xls = readxl::read_xls(filepath),
+                         xlsx = readxl::read_xlsx(filepath) )  }  })
+# Variable names
+shiny::textInput(inputId = "Nd_name",
+                 label = "Nombre columna N disponible",
+                 value = "Nsf")
+shiny::textInput(inputId = "Rinde_name",
+                 label = "Nombre columna rendimiento",
+                 value = "y")
+# Soil N
+shiny::sliderInput("PPNT_DP", "2. N-NO3 Pre-siembra, kg N/ha (0-60cm)", value = 70,  min = 0, max = 250, step = 1)
+# N price
+shiny::sliderInput("N_price_DP", "3. Costo N, US$/kg N", value = 2.8,  min = 1, max = 3.0, step = 0.1)
+# Grain price
+shiny::sliderInput("Grain_price_DP", "4. Precio Grano, US$/kg grano", value = 0.22,  min = 0.1, max = 0.7, step = 0.01)
+actionButton(inputId = "applyDp", label = "Apply", icon = icon("play"))
+actionButton(inputId = "resetDp", label = "Reset", icon = icon("sync"))
+observeEvent(eventExpr = input$resetDp, handlerExpr = {
+  
+  updateSliderInput(
+    session = session,
+    inputId = "PPNT_DP",
+    value = 70
+  )
+  
+  updateSliderInput(
+    session = session,
+    inputId = "N_price_DP",
+    value = 2.8
+  )
+  
+  updateSliderInput(
+    session = session,
+    inputId = "Grain_price_DP",
+    value = 0.22
+  )
+  
+  shinyjs::delay(ms = 100, expr = {
+      shinyjs::click(id = "applyDp")
+  })
+  
+})
+```
+
+Column {data-width=400}
+-----------------------------------------------------------------------
+
+### CURVA DE RESPUESTA PROBABLE
+
+```{r}
+# Transforming in quadratic plateau
+QP_fit <- eventReactive(eventExpr = input$applyDp,
+                        valueExpr = {
+   
+  if(is.null(input$file_input)){
+     return()
+  }
+  else{
+    quadratic_plateau(data = dataset_input(),
+                              yield = dataset_input()[[paste0(input$Rinde_name)]],
+                              Nav = dataset_input()[[paste0(input$Nd_name)]],
+                              plot = FALSE,
+                              tidy = TRUE)
+  }
+ }, ignoreNULL = FALSE)
+# Create plotly
+output$plotly_2 <-renderPlotly({
+  if(is.null(input$file_input)){
+     return()
+  }
+  else{
+  plot <- 
+    ggplot2::ggplot(data = dataset_input(),
+                    aes(y = dataset_input()[[paste0(input$Rinde_name)]],
+                        x = dataset_input()[[paste0(input$Nd_name)]]) )+
+    ggplot2::geom_point(shape = 23, color = "grey25", fill = "orange", size = 2)+
+    geom_vline(xintercept = Outputs_DP()$AONav, size = 1,
+                linetype = "dashed", color = "steelblue")+
+     geom_vline(xintercept = Outputs_DP()$EONav, size = 1,
+                linetype = "dotted", color = "#a6808c")+
+     ggplot2::annotate("pointrange",
+                       label = "Disponibilidad Optima Agronomica",
+                       shape = 25, size = 4,
+                       x = Outputs_DP()$AONav, y = 0, 
+                       xmin = Outputs_DP()$AONav, xmax = Outputs_DP()$AONav,
+                       color = "grey15", fill = "steelblue",
+                       angle = '90', hjust = 0)+
+     ggplot2::annotate("pointrange",
+                       label = "Disponibilidad Optima Economica",
+                       shape = 25, size = 4,
+                       x = Outputs_DP()$EONav, y = 0, 
+                       xmin = Outputs_DP()$EONav, xmax = Outputs_DP()$EONav,
+                       color = "grey15", fill = "#a6808c", 
+                       angle = '90', hjust = 0)+
+    geom_path(data = pred_curve_DP(), 
+              aes(x = pred_curve_DP()$x, y = pred_curve_DP()$y), 
+              size = 2, color = "grey50")+
+    scale_y_continuous(breaks = c(0,1000,2000,3000,4000,5000,6000,7000,8000,9000,
+                                  10000,11000,12000,13000,14000,15000,16000))+
+    scale_x_continuous(breaks = c(0,50,100,150,200,250,300,350,400,450,500))+
+    labs(x = "N suelo+fertilizante (kg N/ha, 0-60 cm)",
+          y = "Rendimiento Maiz (kg/ha)")+
+    theme_bw()+
+    theme(panel.grid = element_blank(),
+           axis.text.x = element_text(size=rel(1.25), color = "black"),
+           axis.text.y = element_text(size=rel(1.25), color = "black"),
+           axis.title = element_text(size=rel(1.75), color = "black"),
+           strip.text = element_text(size=rel(1.25), color = "black"),
+           legend.title = element_text(size = rel(1)),
+           legend.position = "top", legend.key.size = unit(2.5,"line"),
+           legend.text = element_text(size = rel(1)),
+           legend.key.width = unit(2.5,"line")
+             )
+    
+  ggplotly(plot)
+  }
+})
+plotlyOutput(outputId = "plotly_2")
+```
+
+Column {data-width=150}
+-----------------------------------------------------------------------
+
+### RELACION DE PRECIOS
+
+```{r}
+PRatio_DP <- eventReactive(eventExpr = input$applyDp,
+                        valueExpr = {
+  
+  input$N_price_DP / input$Grain_price_DP
+  out <- round(as.numeric(input$N_price_DP/ input$Grain_price_DP), 1)
+  out
+  },
+  ignoreNULL = FALSE)
+flexdashboard::renderGauge({
+  
+  flexdashboard::gauge(PRatio_DP(),
+                       min = 0, max = 15, symbol = '',
+                       gaugeSectors(success = c(0,6),
+                                    warning = c(6.001,12),
+                                    danger = c(12, 15),
+                                    colors = c("#2a9d8f", "#fcbf49", "#ce4257")
+                                    ) ) })
+```
+
+### Disponibilidad Optima Agronomica
+
+```{r}
+Outputs_DP <- eventReactive(eventExpr = input$applyDp,
+                        valueExpr = {
+  if(is.null(input$file_input)){
+     return()
+  }
+  else{
+  QP_fit()%>% 
+        mutate(AONav = CSTV,
+               AONr = ifelse(AONav - input$PPNT_DP >= 0,
+                             AONav - input$PPNT_DP, 0),
+               B2 = slope / (-2*AONav),
+               EONav = ifelse((PRatio_DP() - slope)/(2*B2) >= 0,
+                              (PRatio_DP() - slope)/(2*B2), 0),
+               EONr = ifelse(((PRatio_DP() - slope)/(2*B2)- input$PPNT_DP) >= 0,
+                             ((PRatio_DP() - slope)/(2*B2)- input$PPNT_DP), 0)
+               )
+  }
+}, ignoreNULL = FALSE)
+pred_curve_DP <- eventReactive(eventExpr = input$applyDp,
+                        valueExpr = {
+  
+  tibble::new_tibble(list(x = seq(min(dataset_input()[[paste0(input$Nd_name)]]),
+                     max(dataset_input()[[paste0(input$Nd_name)]]),
+                     length.out = 500)), nrow = 500) %>% 
+    mutate(y = case_when(
+      x < Outputs_DP()$AONav ~ Outputs_DP()$intercept + Outputs_DP()$slope * x + Outputs_DP()$B2 * x^2,
+      x >= Outputs_DP()$AONav ~ Outputs_DP()$intercept + Outputs_DP()$slope * Outputs_DP()$AONav + Outputs_DP()$B2 * Outputs_DP()$AONav^2))
+   }, ignoreNULL = FALSE)
+flexdashboard::renderValueBox({
+  if(is.null(input$file_input)){
+     return()
+  }else{
+  flexdashboard::valueBox(paste(round(Outputs_DP()$AONav,0), "kg N/ha"), 
+            "Disponibilidad Optima Agronomica", 
+            icon = "fa-bullseye", 
+            color = "steelblue")
+  }
+  }) 
+```
+
+### Dosis Optima Agronomica
+
+```{r}
+flexdashboard::renderValueBox({
+  if(is.null(input$file_input)){
+     return()
+  }else{
+  flexdashboard::valueBox(paste(round(Outputs_DP()$AONr,0), "kg N/ha"), 
+            "Dosis Optima Agronomica", 
+            icon = "fa-seedling", 
+            color = "#2a9d8f")
+  }
+  }) 
+```
+
+### Disponibilidad Optima Economica
+
+```{r}
+flexdashboard::renderValueBox({
+  if(is.null(input$file_input)){
+     return()
+  }else{
+  flexdashboard::valueBox(paste(round(Outputs_DP()$EONav,0), "kg N/ha"), 
+            "Disponibilidad Optima Economica", 
+            icon = "fa-coins", 
+            color = "#a6808c")
+  }
+  }) 
+```
+
+### Dosis Optima Economica
+
+```{r}
+flexdashboard::renderValueBox({
+  if(is.null(input$file_input)){
+     return()
+  }else{
+  flexdashboard::valueBox(paste(round(Outputs_DP()$EONr, 0), "kg N/ha"), 
+            "Dosis Optima Economica", 
+            icon = "fa-usd", 
+            color = "#fb8f67")
+  }
+  }) 
+```
+
+
+# About {data-orientation="columns"}
+
+## Column {data-width="5"}
+
+## Column {data-width="40"}
+
+<a href = "https://ciampittilab.wixsite.com/ciampitti-lab"><img src="logo_ciampitti.png" height="120" width="120"/></a>
+
+## Column {data-width="5"}
+
+## Column {data-width="400"}
+
+```{r}
+mainPanel(
+            h1("Description"),
+            p("Translating scientific knowledge into practical tools is one of the 
+              core missions we pursue at",
+              a("CiampittiLab",
+                href = "https://ciampittilab.wixsite.com/ciampitti-lab"), 
+              ". The DONMaiz webtool is based on a synthesis-review analysis performed by Correndo et al. (2021). With the collaboration of multiple corn and fertilization experts from diverse institutions in Argentina, we compiled and analized a database of 788 corn N fertilization trials carried out under a wide spectrum of soil and weather conditions across the Pampas."),
+            p("The tool requires simple data inputs:"),
+            p("  1. Attainable yield"),
+            p("  2. Soil Texture"),
+            p("  3. Pre-plant NO3-N test value at 0-60cm, kg N/ha"),
+            p("  4. Nitrogen price, in US $/kg N"),
+            p("  5. Corn grain price, in US $/kg grain"),
+            tags$hr()
+        ) 
+```
+
+```{r}
+mainPanel(
+            h2("Citation"),
+            p("Correndo, A., Gutierrez-Boem, F.H., Garcia, F.O. Alvarez, C., Alvarez, C., Angeli, A., Barbieri, P., Barraco, M., Berardo, A., Boxler, M., Calviño, P.A., Capurro, J.E., Carta, H., Caviglia, O., Ciampitti, I.A., Diaz-Zorita, M., Diaz-Valdez, S., Echeverria, H.E., Esposito, G., Ferrari, M., Ferraris, G.N., Gambaudo, S., Gudelj, V., Ioele, J.P., Melchiori, R., Molino, J., Orcellet, J.M., Pagani, A., Pautasso, J.M., Reussi Calvo, N.I., Redel, M., Rillo, S., Rimski-Korsakov, H., Sainz-Rozas, H.R., Saks, M., Telleria, Ma.G., Ventimiglia, L., Zorzin, J.L., Zubillaga, Ma.M., Salvagiotti, F.  (2021). Assessing the uncertainty of maize yield without nitrogen fertilization. Field Crops Res. 260, 107985",
+              a("https://doi.org/10.1016/j.fcr.2021.108299",
+                href = "https://doi.org/10.1016/j.fcr.2021.108299"))
+)
+```
+
+<a href = "https://doi.org/10.1016/j.fcr.2021.108299"><img src="paper_screenshot.png" height="300" width="240"/></a>
+
+<a href = "https://doi.org/10.1016/j.fcr.2021.108299"><img src="FIG 1.png" height="300" width="375"/></a>
+
+```{r}
+mainPanel(h3("Credits"),
+          p("This application was designed by Adrian Correndo and Gustavo Nocera Santiago using shiny.",
+              a("https://adriancorrendo.github.io/",
+                href = "https://adriancorrendo.github.io/")),
+          p("Chang et al. (2021). _shiny: Web  Application Framework for R_. R package version 1.7.1,",
+            a("<https://CRAN.R-project.org/package=shiny>", 
+              href = "https://CRAN.R-project.org/package=shiny"))
+          )
+```
